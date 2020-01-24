@@ -1,0 +1,253 @@
+provider "aws" {
+    region = "eu-west-2"
+}
+
+resource "aws_security_group" "instance" {
+    name = "terraform-instance"
+
+    ingress { 
+        from_port   = var.server_port
+        to_port     = var.server_port
+        protocol    = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+        }
+    }
+
+resource "aws_security_group" "elb" {
+    name = "terraform-instance-elb"
+
+    egress {
+        # allow all outbound egress
+        
+            from_port   = 0
+            to_port     = 0
+            protocol    = "-1"
+            cidr_blocks = ["0.0.0.0/0"]  
+    }
+
+    ingress{
+        # allows inbound traffic from anywhere
+        
+            from_port   = 0
+            to_port     = 0
+            protocol    = "tcp"
+            cidr_blocks = ["0.0.0.0/0"]
+    }
+        
+    
+}
+
+
+resource "aws_instance" "instance" {
+    ami                    = "ami-0be057a22c63962cb"
+    instance_type      provider "aws" {
+    region = "eu-west-2"
+}
+
+resource "aws_security_group" "instance" {
+    name = "terraform-instance"
+
+    ingress { 
+        from_port   = var.server_port
+        to_port     = var.server_port
+        protocol    = "tcp"
+        cidr_blocks = ["0.0.0.0/0"]
+        }
+    }
+
+resource "aws_security_group" "elb" {
+    name = "terraform-instance-elb"
+
+    egress {
+        # allow all outbound egress
+        
+            from_port   = 0
+            to_port     = 0
+            protocol    = "-1"
+            cidr_blocks = ["0.0.0.0/0"]  
+    }
+
+    ingress{
+        # allows inbound traffic from anywhere
+        
+            from_port   = 0
+            to_port     = 0
+            protocol    = "tcp"
+            cidr_blocks = ["0.0.0.0/0"]
+    }
+        
+    
+}
+
+
+resource "aws_instance" "instance" {
+    ami                    = "ami-0be057a22c63962cb"
+    instance_type          = "t2.micro"
+    vpc_security_group_ids = [aws_security_group.instance.id]
+
+    user_data = <<-EOF
+                #!/BIN/BASH
+                ECHO "Big FAT YEET" > index.html
+                nohup busybox httpd -f -p "${var.server_port}" &
+                EOF
+
+    tags = {
+        Name = "terraform-instance"
+    }
+}
+
+resource "aws_launch_configuration" "instance" {
+    image_id        = "ami-0be057a22c63962cb"
+    instance_type   = "t2.micro"
+    security_groups = [aws_security_group.instance.id]
+
+    user_data = <<-EOF
+                #!/bin/bash
+                echo "Big FAT YEET" > index.html
+                nohup busybox httpd -f -p "${var.server_port}" &
+                EOF
+
+    lifecycle {
+        create_before_destroy = true
+    }
+}
+
+resource "aws_autoscaling_group" "instance" {
+    launch_configuration = aws_launch_configuration.instance.id
+    availability_zones   = ["eu-west-2a", "eu-west-2b", "eu-west-2c"]
+
+    min_size = 1
+    max_size = 4
+
+    load_balancers    = [aws_elb.instance.name]
+    health_check_type = "ELB"
+
+    tag {
+        key                 = "Name"
+        value               = "terraform-asg"
+        propagate_at_launch = true
+    }
+
+}
+
+resource "aws_elb" "instance" {
+    name               = "terraform-asg"
+    security_groups    = [aws_security_group.elb.id]
+    availability_zones = ["eu-west-2a", "eu-west-2b", "eu-west-2c"]
+
+    health_check {
+        target   = "HTTP:${var.server_port}/"
+        interval            = 30
+        timeout             = 3
+        healthy_threshold   = 2
+        unhealthy_threshold = 2
+    }
+
+    #adds a listener for incoming traffic
+    listener {
+        lb_port           = 80
+        lb_protocol       = "http"
+        instance_port     = var.server_port
+        instance_protocol = "http"
+    }
+}
+
+variable "server_port" {
+    description = "the port the server will use for http requests"
+    type        = number
+    default     = 8080
+}
+
+output "public_ip" {
+    value       = aws_instance.instance.public_ip
+    description = "The public IP of the ec2"
+}
+
+output "elb_dns_name" {
+    value = aws_elb.instance.dns_name
+    description = "The domain name of the load balancer"
+}    = "t2.micro"
+    vpc_security_group_ids = [aws_security_group.instance.id]
+
+    user_data = <<-EOF
+                #!/BIN/BASH
+                ECHO "Big FAT YEET" > index.html
+                nohup busybox httpd -f -p "${var.server_port}" &
+                EOF
+
+    tags = {
+        Name = "terraform-instance"
+    }
+}
+
+resource "aws_launch_configuration" "instance" {
+    image_id        = "ami-0be057a22c63962cb"
+    instance_type   = "t2.micro"
+    security_groups = [aws_security_group.instance.id]
+
+    user_data = <<-EOF
+                #!/bin/bash
+                echo "Big FAT YEET" > index.html
+                nohup busybox httpd -f -p "${var.server_port}" &
+                EOF
+
+    lifecycle {
+        create_before_destroy = true
+    }
+}
+
+resource "aws_autoscaling_group" "instance" {
+    launch_configuration = aws_launch_configuration.instance.id
+    availability_zones   = ["eu-west-2a", "eu-west-2b", "eu-west-2c"]
+
+    min_size = 1
+    max_size = 4
+
+    load_balancers    = [aws_elb.instance.name]
+    health_check_type = "ELB"
+
+    tag {
+        key                 = "Name"
+        value               = "terraform-asg"
+        propagate_at_launch = true
+    }
+
+}
+
+resource "aws_elb" "instance" {
+    name               = "terraform-asg"
+    security_groups    = [aws_security_group.elb.id]
+    availability_zones = ["eu-west-2a", "eu-west-2b", "eu-west-2c"]
+
+    health_check {
+        target   = "HTTP:${var.server_port}/"
+        interval            = 30
+        timeout             = 3
+        healthy_threshold   = 2
+        unhealthy_threshold = 2
+    }
+
+    #adds a listener for incoming traffic
+    listener {
+        lb_port           = 80
+        lb_protocol       = "http"
+        instance_port     = var.server_port
+        instance_protocol = "http"
+    }
+}
+
+variable "server_port" {
+    description = "the port the server will use for http requests"
+    type        = number
+    default     = 8080
+}
+
+output "public_ip" {
+    value       = aws_instance.instance.public_ip
+    description = "The public IP of the ec2"
+}
+
+output "elb_dns_name" {
+    value = aws_elb.instance.dns_name
+    description = "The domain name of the load balancer"
+}
